@@ -120,7 +120,7 @@ int main(void){
 	h_points_out = (char*)malloc(sizeof(char)*numpoints);
 
 	generate_random_points(min.x, max.x, min.y, max.y, min.z, max.z, numpoints, &h_points_vector);
-	h_points = h_points_vector.data();;
+	h_points = h_points_vector.data();
 
 	//Allocate memory for the  device
 	d_mesh = thrust::device_malloc<float3>(3*numtri);
@@ -149,12 +149,12 @@ int main(void){
 	thrust::copy(d_points_out, d_points_out + numpoints, h_points_out);
 	export_test_points_as_obj_files(h_points, h_points_out, numpoints);
 
-	// cudaFree(thrust::raw_pointer_cast(d_points));
-	// cudaFree(thrust::raw_pointer_cast(d_points_out));
-	// cudaFree(thrust::raw_pointer_cast(d_mesh));
+	cudaFree(thrust::raw_pointer_cast(d_points));
+	cudaFree(thrust::raw_pointer_cast(d_points_out));
+	cudaFree(thrust::raw_pointer_cast(d_mesh));
 
 	// free(h_points);
-	// free(h_points_out);
+	free(h_points_out);
 	// free(h_mesh);
 
 }
