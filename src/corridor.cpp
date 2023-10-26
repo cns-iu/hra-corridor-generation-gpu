@@ -164,7 +164,7 @@ std::vector<float3> create_point_cloud_corridor_for_multiple_AS(Organ &organ, AA
     std::cout << "max x, y, z: " << intersect_x_max << " " << intersect_y_max << " " << intersect_z_max << std::endl;
     std::cout << "step size: " << step_x << " " << step_y << " " << step_z << std::endl;
 
-    
+    // parallel by GPU
     for (double c_x = intersect_x_min - example_d_x / 2; c_x < intersect_x_max + example_d_x / 2; c_x += step_x)
         for (double c_y = intersect_y_min - example_d_y / 2; c_y < intersect_y_max + example_d_y / 2; c_y += step_y)
             for (double c_z = intersect_z_min - example_d_z / 2; c_z < intersect_z_max + example_d_z / 2; c_z += step_z)
@@ -207,4 +207,57 @@ std::vector<float3> create_point_cloud_corridor_for_multiple_AS(Organ &organ, AA
 
 }
 
+
+__global__ void compute_corridor_GPU(float3 *meshes, uint *offset, float3 *point_cloud, 
+                                        float intersect_x_min, float intersect_y_min, float intersect_z_min,
+                                        float intersect_x_max, float intersect_y_max, float intersect_z_max,
+                                        float example_d_x, float example_d_y, float example_d_z,
+                                        float step_x, float step_y, float step_z)
+{
+    
+    __shared__ float intersection_volume;
+
+    int x = blockIdx.x;
+    int y = blockIdx.y;
+    int z = blockIdx.z;
+    
+    // Initilize intersection_volume
+	if (threadIdx.x == 0) intersection_volume = 0.0;
+    __syncthreads();
+
+
+    for (float c_x = intersect_x_min - example_d_x / 2 + step_x * x; c_x < intersect_x_max + example_d_x / 2; c_x += step_x * gridDim.x)
+        for (float c_y = intersect_y_min - example_d_y / 2 + step_y * y; c_y < intersect_y_max + example_d_y / 2; c_y += step_y * gridDim.y)
+            for (float c_z = intersect_z_min - example_d_z / 2 + step_z * z; c_z < intersect_z_max + example_d_z / 2; c_z += step_z * gridDim.z)
+            {
+                // tissue information: c_x, c_y, c_z, example_d_x, example_d_y, example_d_z;
+
+                
+                float min_x = c_x - example_d_x/2, min_y = c_y - example_d_y/2, min_z = c_z - example_d_z/2;
+                float max_x = c_x + example_d_x/2, max_y = c_y + example_d_y/2, max_z = c_z + example_d_z/2; 
+                float delta_x = (max_x - min_x) / resolution, delta_y = (max_y - min_y) / resolution, delta_z = (max_z - min_z) / resolution;    
+                
+                int thread_number_point_inside = 0;
+
+                for (int i = threadIdx.x; i < resolution; i += blockDim.x)
+                    for (int j = threadIdx.y; j < resolution; j += blockDim.y)
+                        for (int k = threadIdx.z; k < resolution; k += blockDim.z)
+                        {
+                            float point_c_x = min_x + (i + 0.5) * delta_x;
+                            float point_c_y = min_y + (j + 0.5) * delta_y;
+                            float point_c_z = min_z + (k + 0.5) * delta_z;
+                            
+                            float3 p = make_float3(point_c_x, point_c_y, point_c_z);
+                            thread_number_point_inside += point_in_polyhedron(p, meshes, offsets); 
+                        }
+                
+                atomicAdd(&intersection_volume, (float)thread_intersections_sum/example_d_x/example_d_y/example_d_z);
+
+                // Wait until all threads have done their part of work
+		        __syncthreads();
+                
+
+            }
+
+}
 

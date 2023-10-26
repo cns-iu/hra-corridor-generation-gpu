@@ -15,5 +15,5 @@ class Organ{
         // meshes_vector is the concatenation of a 3d points. Three 3d points form a face. 
         // (offset[i+1] - offset[i]) * 3 form the i-th mesh
         std::vector<float3> meshes_vector;
-        std::vector<int> offset;
+        std::vector<uint> offset;
 }
