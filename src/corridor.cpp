@@ -248,16 +248,32 @@ __global__ void compute_corridor_GPU(float3 *meshes, uint *offset, float3 *point
                             float point_c_z = min_z + (k + 0.5) * delta_z;
                             
                             float3 p = make_float3(point_c_x, point_c_y, point_c_z);
-                            thread_number_point_inside += point_in_polyhedron(p, meshes, offsets); 
+                            thread_number_point_inside += point_in_polyhedron(p, meshes, offset); 
                         }
                 
                 atomicAdd(&intersection_volume, (float)thread_intersections_sum/example_d_x/example_d_y/example_d_z);
 
                 // Wait until all threads have done their part of work
 		        __syncthreads();
-                
+
 
             }
 
 }
+
+int __device__ __host__ point_in_polyhedron(float3 point, float3 *meshes, uint *offset, uint n_meshes)
+{
+
+    float intersection_sum = 0;
+
+    for (int k = 0; k < n_meshes; k++)
+        for (int i = offset[k]; i < offset[k+1]; i++)
+            intersections_sum += ray_triangle_intersection(&meshes[3*i], point);
+    
+    // even number of intersections
+    if ((int)intersections_sum % 2 == 0) return 0;
+    return 1;
+}
+
+
 
