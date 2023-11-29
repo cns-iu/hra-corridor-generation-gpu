@@ -22,19 +22,19 @@ set(
     )
 
 cuda_select_nvcc_arch_flags(ARCH_FLAGS)
-cuda_add_executable(pip point_in_polyhedron.cu)
-target_include_directories(pip PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+# cuda_add_executable(pip point_in_polyhedron.cu)
+# target_include_directories(pip PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
-file(GLOB GEOMETRY_SRC_FILES geometry/*.cpp)
-add_library(geometry ${GEOMETRY_SRC_FILES})
-target_include_directories(geometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/geometry)
-target_link_libraries(geometry PUBLIC CGAL::CGAL)
+# file(GLOB GEOMETRY_SRC_FILES geometry/*.cpp)
+# add_library(geometry ${GEOMETRY_SRC_FILES})
+# target_include_directories(geometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/geometry)
+# target_link_libraries(geometry PUBLIC CGAL::CGAL)
 # target_link_libraries(geometry PUBLIC Eigen3::Eigen)
 
-cuda_add_executable(main main.cu corridor.cu)
+cuda_add_executable(main corridor.cu main.cu)
 target_include_directories(main PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(main geometry)
+# target_link_libraries(main geometry)
 
 if(Boost_FOUND)
     target_link_libraries(main ${Boost_LIBRARIES})

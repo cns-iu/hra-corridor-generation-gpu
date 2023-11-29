@@ -1,9 +1,11 @@
-// #include "corridor.cuh"
+#include "corridor.cuh"
 #include <stdlib.h>
 #include <stdio.h>
 
+// global variables
+std::unordered_map<std::string, Organ> total_body;
 
-int main()
+int main(int argc, char **argv)
 {
     // print device information
     int count;
@@ -23,6 +25,21 @@ int main()
         
         printf( "\n" );
     }
+
+    // load arguments
+    std::string body_path = std::string(argv[1]);
+
+    // load all organs
+    loadAllOrganModels(body_path, total_body);
+
+    // rui location: http://purl.org/ccf/1.5/64c5c92d-dc07-40c4-a702-cbef17753fa6
+    std::vector<std::pair<int, float>> collision_detection_result;
+    collision_detection_result.push_back(std::make_pair(3, 0.031));
+    collision_detection_result.push_back(std::make_pair(13, 0.961));
+
+    AATissue example_tissue(0, 0, 0, 0.002, 0.003, 0.002);
+    test_corridor_for_multiple_AS(example_tissue, collision_detection_result, total_body["VH_F_Kidney_R"], 0.05);
+
 
     return 0;
 }
