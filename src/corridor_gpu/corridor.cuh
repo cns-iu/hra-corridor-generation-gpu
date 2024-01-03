@@ -30,9 +30,6 @@
 #include <unordered_map>
 #include <boost/filesystem.hpp>
 
-//CGAL
-// #include "mymesh.h"
-
 // Random Number Generator
 #include <random>
 
@@ -197,6 +194,7 @@ void loadOrganModel(std::string path, Organ &organ);
 
 // Load all the organs
 void loadAllOrganModels(std::string path, std::unordered_map<std::string, Organ> &total_body);
+int add(int a, int b);
 
 
 __global__ void compute_corridor_GPU(float3 *meshes, uint *offset, float* target_intersection_pctgs, uint n_meshes, 
@@ -212,7 +210,7 @@ int __device__ __host__ point_in_polyhedron(float3 point, float3 *meshes, uint *
 
 // void test_corridor_for_multiple_AS(std::vector<Mymesh> &organ, AATissue &example_tissue, std::vector<std::pair<int, double>> &result, double tolerance);
 
-void test_corridor_for_multiple_AS(AATissue &example_tissue, std::vector<std::pair<int, float>> &result, Organ &organ, float tolerance);
+ResultContainer test_corridor_for_multiple_AS(AATissue &example_tissue, std::vector<std::pair<int, float>> &result, Organ &organ, float tolerance);
 
 MBB get_mbb(std::vector<float>& vertices_vector, int numv);
 

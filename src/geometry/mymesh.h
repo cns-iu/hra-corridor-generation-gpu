@@ -1,8 +1,8 @@
 #ifndef MYMESH_H_
 #define MYMESH_H_
 
-#include<CGAL/Simple_cartesian.h>
-// #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+// #include<CGAL/Simple_cartesian.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include<CGAL/Surface_mesh.h>
 #include<CGAL/polygon_mesh_processing.h>
 #include<CGAL/AABB_face_graph_triangle_primitive.h>
@@ -11,7 +11,7 @@
 #include<iostream>
 #include<vector>
 #include<boost/filesystem.hpp>
-// #include "omp.h"
+#include "omp.h"
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel Kernel;
 typedef Kernel::Point_3 Point;
@@ -27,6 +27,9 @@ typedef Surface_mesh::Halfedge_index halfedge_descriptor;
 typedef Surface_mesh::Vertex_index vertex_descriptor;
 typedef Surface_mesh::Face_index face_descriptor;
 typedef CGAL::Side_of_triangle_mesh<Surface_mesh, Kernel> Point_inside;
+
+namespace PMP = CGAL::Polygon_mesh_processing;
+namespace fs = boost::filesystem;
 
 class Mymesh{
 

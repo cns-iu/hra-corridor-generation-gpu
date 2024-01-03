@@ -114,7 +114,10 @@ void loadOrganModel(std::string path, Organ &organ) {
 
 }
 
-
+int add(int a, int b)
+{
+	return a + b;
+}
 void loadAllOrganModels(std::string path, std::unordered_map<std::string, Organ> &total_body)
 {
     for (fs::directory_entry& organ_entry: fs::directory_iterator(path)) 
@@ -391,7 +394,7 @@ int __device__ __host__ point_in_polyhedron(float3 point, float3 *meshes, uint *
 
 
 // test corridor for all AS in each organ
-void test_corridor_for_multiple_AS(AATissue &example_tissue, std::vector<std::pair<int, float>> &result, Organ &organ, float tolerance)
+ResultContainer test_corridor_for_multiple_AS(AATissue &example_tissue, std::vector<std::pair<int, float>> &result, Organ &organ, float tolerance)
 {
 
     // std::vector<Point> center_path;
@@ -513,6 +516,8 @@ void test_corridor_for_multiple_AS(AATissue &example_tissue, std::vector<std::pa
 
 	cudaFree(thrust::raw_pointer_cast(d_meshes));
 	cudaFree(thrust::raw_pointer_cast(d_offsets));
+
+	return result_container;
 
 }
 

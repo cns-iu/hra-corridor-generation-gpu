@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+//CGAL
+#include "mymesh.h" 
+
 // global variables
 std::unordered_map<std::string, Organ> total_body;
 
