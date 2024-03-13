@@ -103,6 +103,7 @@ class Organ{
 class ResultContainer{
     public:
         float3 corridor_array[40*40*40];
+        bool point_is_in_corridor_array[40*40*40];
         int corridor_point_idx = 0;
 };
 

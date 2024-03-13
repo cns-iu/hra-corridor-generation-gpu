@@ -9,6 +9,7 @@ find_package(CGAL REQUIRED)
 find_package (Eigen3 REQUIRED NO_MODULE)
 find_package(Boost 1.45.0 COMPONENTS filesystem)
 find_package(cpprestsdk REQUIRED)
+find_package(assimp REQUIRED)
 
 
 set(CMAKE_BUILD_TYPE "Release")
@@ -30,6 +31,7 @@ add_library(geometry ${GEOMETRY_SRC_FILES})
 target_include_directories(geometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/geometry)
 target_link_libraries(geometry PUBLIC CGAL::CGAL)
 target_link_libraries(geometry PUBLIC Eigen3::Eigen)
+target_link_libraries(geometry PUBLIC assimp)
 
 # static library corridor_gpu
 file(GLOB CORRIDOR_GPU_SRC_FILES corridor_gpu/*.cu)

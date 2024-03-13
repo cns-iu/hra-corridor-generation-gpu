@@ -9,6 +9,11 @@
 #include <math.h>
 #include<boost/filesystem.hpp>
 
+#include <assimp/Importer.hpp>
+#include <assimp/Exporter.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #include "mymesh.h"
 
 
@@ -41,3 +46,9 @@ std::string organ_split(const std::string &url);
 void load_ASCT_B(const std::string &file_path, std::unordered_map<std::string, std::string> &mapping, std::unordered_map<std::string, SpatialEntity> &mapping_node_spatial_entity);
 
 void output_corridor(Surface_mesh &mesh, std::string rui_location_id, std::string output_corridor_dir);
+
+std::string output_corridor_glb(Surface_mesh &mesh, std::string rui_location_id, std::string output_corridor_dir);
+
+std::string output_corridor_glb(Surface_mesh &corridor_mesh, std::string rui_location_id);
+
+void comparison_CPU_GPU(std::vector<Point> &CPU_points, std::vector<Point> &GPU_points);

@@ -31,12 +31,39 @@ std::unordered_map<std::string, Organ> total_body_gpu;                          
 
 
 // Point format convertion from gpu (float3) to cpu (Point in CGAL)
-std::vector<Point> convert_point_gpu_to_cpu(ResultContainer &result_container)
+std::vector<Point> convert_point_gpu_to_cpu(ResultContainer &result_container, AATissue &example_tissue)
 {
-   std::vector<Point> points;
-   for (float3 p: result_container.corridor_array) points.push_back(Point(p.x, p.y, p.z));
+   std::vector<Point> point_cloud;
+   float3* p_corridor_arr = result_container.corridor_array;
+   bool* p_point_is_in_corridor_array = result_container.point_is_in_corridor_array;
+   
+   float example_d_x = example_tissue.dimension_x;
+   float example_d_y = example_tissue.dimension_y;
+   float example_d_z = example_tissue.dimension_z;
 
-   return points;
+   float c_x, c_y, c_z;
+   for (int i = 0; i < 40*40*40; i++) {
+      if (p_point_is_in_corridor_array[i])
+      {
+         float3 p = p_corridor_arr[i];
+         c_x = p.x;
+         c_y = p.y;
+         c_z = p.z;
+         point_cloud.push_back(Point(c_x - example_d_x / 2, c_y - example_d_y / 2, c_z - example_d_z / 2));
+         point_cloud.push_back(Point(c_x + example_d_x / 2, c_y - example_d_y / 2, c_z - example_d_z / 2));
+         point_cloud.push_back(Point(c_x - example_d_x / 2, c_y + example_d_y / 2, c_z - example_d_z / 2));
+         point_cloud.push_back(Point(c_x + example_d_x / 2, c_y + example_d_y / 2, c_z - example_d_z / 2));
+         point_cloud.push_back(Point(c_x - example_d_x / 2, c_y - example_d_y / 2, c_z + example_d_z / 2));
+         point_cloud.push_back(Point(c_x + example_d_x / 2, c_y - example_d_y / 2, c_z + example_d_z / 2));
+         point_cloud.push_back(Point(c_x - example_d_x / 2, c_y + example_d_y / 2, c_z + example_d_z / 2));
+         point_cloud.push_back(Point(c_x + example_d_x / 2, c_y + example_d_y / 2, c_z + example_d_z / 2));
+
+      }
+   }
+
+
+
+   return point_cloud;
 }
 
 
@@ -45,7 +72,7 @@ void display_json(
    json::value const & jvalue,
    utility::string_t const & prefix)
 {
-   std::cout << prefix << jvalue.serialize() << std::endl;
+   // std::cout << prefix << jvalue.serialize() << std::endl;
 }
 
 //parse json
@@ -131,7 +158,7 @@ void parse_json(json::value const &jvalue, json::value &answer)
          auto &target_organ = total_body[organ_file_name];
          //print result
          std::cout << "mesh collision detection result:\nlabel         percentage" << std::endl;
-         for (auto s: result) {std::cout << s.first << " " << s.second << std::endl;}
+         for (auto s: result) {std::cout << target_organ[s.first].label << " " << s.second << std::endl;}
          std::cout << "bounding box collision detection result: \nlabel" << std::endl;
          for (auto s: result_bb) {std::cout << s << std::endl; }
 
@@ -140,47 +167,61 @@ void parse_json(json::value const &jvalue, json::value &answer)
 
          // GPU corridor generation based on collision detection result
          auto rui_location_id = jvalue.at("@id").as_string();
+         std::cout << "rui location id: " << rui_location_id << std::endl;
          std::string output_corridor_dir = "./corridor_models";
          
          double tolerance = 0.05;
-         std::string glb;
+
+         Surface_mesh corridor_mesh;
          if (result.size() > 3) {
-            glb = output_corridor_glb(my_tissue.get_raw_mesh(), rui_location_id, output_corridor_dir);
+            corridor_mesh = my_tissue.get_raw_mesh();
+            // glb = output_corridor_glb(my_tissue.get_raw_mesh(), rui_location_id, output_corridor_dir);
          }
          else if (result.size() == 2 || result.size() == 3)
          {           
-            AATissue example_tissue(0, 0, 0, params["x_dimension"]/1000.0, params["y_dimension"]/1000.0, params["z_dimension"]/1000.0);
-
+            AATissue example_tissue_gpu(0, 0, 0, params["x_dimension"]/1000.0, params["y_dimension"]/1000.0, params["z_dimension"]/1000.0);
+            Mytissue example_tissue_cpu(0.0, 0.0, 0.0, params["x_dimension"]/1000.0, params["y_dimension"]/1000.0, params["z_dimension"]/1000.0);
             // collision detection result: convert intersection volume (the second value), from double to float
             std::vector<std::pair<int, float>> float_collision_detection_result;
             for (auto s: result) float_collision_detection_result.push_back(std::make_pair(s.first, (float) s.second));
             
+            // CPU baseline
+            t1 = std::chrono::high_resolution_clock::now();
+            auto baseline_points = create_point_cloud_corridor_for_multiple_AS(total_body[organ_file_name], example_tissue_cpu, result, tolerance);
+            t2 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> duration_cpu = t2 - t1;
+            std::cout << "CPU baseline: " << duration_cpu.count() << " seconds" << std::endl;
+            // GPU implementation
             // note: loading total body (cpu and gpu) can merge together
-            ResultContainer result_container = test_corridor_for_multiple_AS(example_tissue, float_collision_detection_result, total_body_gpu[organ_file_name], tolerance);
-            
+            t1 = std::chrono::high_resolution_clock::now();
+            ResultContainer result_container = test_corridor_for_multiple_AS(example_tissue_gpu, float_collision_detection_result, total_body_gpu[organ_file_name], tolerance);
             // from float3 arr to CGAL Point vector
-            std::vector<Point> points = convert_point_gpu_to_cpu(result_container);
-
+            std::vector<Point> points = convert_point_gpu_to_cpu(result_container, example_tissue_gpu);
+            t2 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> duration_gpu = t2 - t1;
+            std::cout << "GPU corridor: " << duration_gpu.count() << " seconds" << std::endl;
+            
+            // verification GPU results
+            comparison_CPU_GPU(baseline_points, points);
             // using CGAL function to reconstruct mesh from points
-            Surface_mesh corridor_mesh = create_corridor_from_point_cloud(points);
-            glb = output_corridor_glb(corridor_mesh, rui_location_id, output_corridor_dir);
+            if (points.size() == 0) corridor_mesh = my_tissue.get_raw_mesh();
+            else corridor_mesh = create_corridor_from_point_cloud(points);
+            
+            // construct the response of running time
+            answer[U("CPU_time")] = json::value(duration_cpu.count());
+            answer[U("GPU_time")] = json::value(duration_gpu.count());
          }
          else if (result.size() == 1)
-         { 
-            glb = output_corridor_glb(target_organ[result[0].first].get_raw_mesh(), rui_location_id, output_corridor_dir);
+         {
+            corridor_mesh =  target_organ[result[0].first].get_raw_mesh();
          }
          
+         std::string glb = output_corridor_glb(corridor_mesh, rui_location_id);
+
          // construct response for corridor
-         for (int i = 0; i < result.size(); i++)
-         {
-            auto res = result[i];
-            json::value AS;
-            
-            AS[U("corridor_glb")] = json::value::string(U(glb));
-            AS[U("rui_location_id")] = json::value::string(U(rui_location_id));
-            
-            answer[i] = AS;
-         }
+         answer[U("number_of_collisions")] = json::value(result.size());
+         answer[U("corridor_glb")] = json::value::string(U(glb));
+         answer[U("rui_location_id")] = json::value::string(U(rui_location_id));
 
    }
    catch(...)

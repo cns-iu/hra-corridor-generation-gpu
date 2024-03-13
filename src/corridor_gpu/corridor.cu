@@ -237,12 +237,16 @@ __global__ void compute_corridor_GPU(float3 *meshes, uint *offset, float* target
 	
 	// printf("block index: %d %d %d %d %d %d\n", x, y, z, i, j, k);
 	
-	if (x > 40 || y > 40 || z > 40) return;
+	if (x >= 40 || y >= 40 || z >= 40) return;
 
-	__shared__ float intersection_volumes[10];
-	if (threadIdx.x == 0)
+	// __shared__ float intersection_volumes[10];
+	__shared__ float intersection_volumes[10][1000];
+	if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
 	{
-		for (int i = 0; i < 10; i++) intersection_volumes[i] = 0.0;
+		// for (int i = 0; i < 10; i++) intersection_volumes[i] = 0.0;
+		for (int i = 0; i < 10; i++)
+			for (int j = 0; j < 1000; j++)
+			intersection_volumes[i][j] = 0.0;
 	}
 	__syncthreads();
 
@@ -269,18 +273,26 @@ __global__ void compute_corridor_GPU(float3 *meshes, uint *offset, float* target
 	for (int m_idx = 0; m_idx < n_meshes; m_idx++)
 	{
 		v = point_in_polyhedron(p, meshes, offset, m_idx);
-		atomicAdd(&intersection_volumes[m_idx], v);
+		// atomicAdd(&intersection_volumes[m_idx], v);
+		intersection_volumes[m_idx][i*10*10 + j*10 + k] = v;
 	}
 
 	__syncthreads();
 
-	if (threadIdx.x == 0)
+	if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
 	{
 		bool is_in_corridor = true;
 		int total_voxels = resolution * resolution * resolution;
 		for (int m_idx = 0; m_idx < n_meshes; m_idx++)
 		{
-			float cur_pctg = intersection_volumes[m_idx] / total_voxels;
+			float temp_intersect_volume = 0;
+			for (int p_idx = 0; p_idx < 1000; p_idx++)
+			{
+				temp_intersect_volume += intersection_volumes[m_idx][p_idx];
+			}
+
+			// float cur_pctg = intersection_volumes[m_idx] / total_voxels;
+			float cur_pctg = 1.0 * temp_intersect_volume / total_voxels;
 			// printf("cur_pctg: %f\n", cur_pctg);
 			if (cur_pctg > target_intersection_pctgs[m_idx] * (1 + tolerance) || cur_pctg < target_intersection_pctgs[m_idx] * (1 - tolerance))
 			{
@@ -289,12 +301,15 @@ __global__ void compute_corridor_GPU(float3 *meshes, uint *offset, float* target
 			}
 		}
 
+		int idx = x*40*40 + y*40 + z;
 		if (is_in_corridor)
 		{
-			// atomicAdd(&total, 1);
-			// printf("%f %f %f is in corridor\n", point_c_x, point_c_y, point_c_z);
-			result_container->corridor_array[result_container->corridor_point_idx] = p;
-			atomicAdd(&result_container->corridor_point_idx, 1);
+			float3 tissue_center = make_float3(c_x, c_y, c_z);
+			result_container->corridor_array[idx] = tissue_center;
+			result_container->point_is_in_corridor_array[idx] = true;
+		}
+		else{
+			result_container->point_is_in_corridor_array[idx] = false;
 		}
 
 	}
@@ -485,16 +500,16 @@ ResultContainer test_corridor_for_multiple_AS(AATissue &example_tissue, std::vec
     //Define Grid Configuration
 	// dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
 	// dim3 dimGrid(MAX_BLOCK_NUMBERS, MAX_BLOCK_NUMBERS, MAX_BLOCK_NUMBERS);
-	dim3 dimBlock(8, 8, 8);
+	dim3 dimBlock(10, 10, 10);
 	dim3 dimGrid(64, 64, 64);
 
     //Launch corridor GPU
     GpuTimer timer;
 	timer.Start();
-    int resolution = 8;
+    int resolution = 10;
 
 
-	std::cout << "collided_as size: " << collided_as.size() << "collided_mesh number: " << n_meshes << std::endl;
+	std::cout << "collided_as size: " << collided_as.size() << " collided_mesh number: " << n_meshes << std::endl;
 	
     compute_corridor_GPU<<<dimGrid, dimBlock>>>(thrust::raw_pointer_cast(d_meshes), thrust::raw_pointer_cast(d_offsets), thrust::raw_pointer_cast(d_target_pctg), n_meshes,
                                         intersect_x_min, intersect_y_min, intersect_z_min,
@@ -505,10 +520,9 @@ ResultContainer test_corridor_for_multiple_AS(AATissue &example_tissue, std::vec
     cudaDeviceSynchronize();
     print_if_cuda_error(__LINE__);
 	timer.Stop();
-	printf("\t\n Kernel Time: %f msecs.\n", timer.Elapsed());
+	printf("\t\nKernel Time: %f msecs.\n", timer.Elapsed());
 
-	thrust::copy(d_result_container, d_result_container + 1, h_result_container);
-	printf("There are %d points in corridor\n", h_result_container->corridor_point_idx);
+	thrust::copy(d_result_container, d_result_container + 1, h_result_container);	
 
 
     // copy from device to host
