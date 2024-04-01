@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.9)
 project(3D-CORRIDOR-GPU CUDA CXX)
+set(CGAL_DIR "$ENV{HOME}/CGAL-5.5.3")
 
-set(CGAL_DIR "$ENV{HOME}/CGAL-5.5.2")
+set(CMAKE_C_COMPILER /usr/bin/gcc-10)
+set(CMAKE_CXX_COMPILER /usr/bin/g++-10)
 
 # find packages
 find_package(CUDA QUIET REQUIRED)
@@ -64,7 +66,9 @@ target_link_libraries(gpu_corridor_api corridor_gpu)
 target_link_libraries(gpu_corridor_api corridor_cpu)
 target_link_libraries(gpu_corridor_api cpprestsdk::cpprest)
 
-
+# aabb tree
+cuda_add_executable(aabbtree test_aabbtree.cpp)
+target_include_directories(aabbtree PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/index)
 
 if(Boost_FOUND)
     target_link_libraries(main ${Boost_LIBRARIES})
