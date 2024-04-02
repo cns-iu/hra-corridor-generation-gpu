@@ -12,21 +12,15 @@ Author: Lu Chen
 #include <numeric>
 #include <iostream>
 
+#include "corridor.cuh"
 #include "cuda_runtime.h"
 
 
-class MBB
+class MBB_Tri: public MBB
 {
-    public:
-        MBB() = default;
-        MBB(float x_min, float y_min, float z_min, float x_max, float y_max, float z_max):
-        xmin(x_min), ymin(y_min), zmin(z_min), xmax(x_max), ymax(y_max), zmax(z_max) {}
     
     public:
-        float xmin, ymin, zmin, xmax, ymax, zmax;
-    
-    public:
-        void update(MBB &other_mbb)
+        void update(MBB_Tri &other_mbb)
         {
             xmin = std::min(xmin, other_mbb.xmin);
             ymin = std::min(ymin, other_mbb.ymin);
@@ -50,7 +44,7 @@ class Node
         // division axis
         int axis;
         // MBB of the node
-        MBB mbb;
+        MBB_Tri mbb;
 
         
         // The start index of the triangle in indices array
@@ -73,7 +67,7 @@ class Triangle
         float3 p2;
         float3 p3;
         float3 center;
-        MBB mbb;
+        MBB_Tri mbb;
     
     public:
         Triangle() = default;
@@ -145,18 +139,18 @@ class AABBTree
         class Exception: public std::exception {using std::exception::exception; };
 
 
-        MBB compute_mbb(Node& node, int* indices)
+        MBB_Tri compute_mbb(Node& node, int* indices)
         {
             int start = node.start;
             int end = node.end;
             int idx;
 
-            MBB node_mbb = triangles_[start].mbb;
+            MBB_Tri node_mbb = triangles_[start].mbb;
             
             for (int i = start; i <= end; i++)
             {
                 idx = indices[i];
-                MBB cur_mbb = triangles_[idx].mbb;
+                MBB_Tri cur_mbb = triangles_[idx].mbb;
                 node_mbb.update(cur_mbb);
             }
 
@@ -255,7 +249,7 @@ class AABBTree
             for (int i = 0; i < k; i++)
             {
                 Node &node = node_pool[i];
-                MBB &mbb = node.mbb;
+                MBB_Tri &mbb = node.mbb;
                 std::cout << "start: " << node.start << " end: " << node.end << std::endl;
                 std::cout << mbb.xmin << ", " << mbb.ymin << ", " << mbb.zmin << ", " << mbb.xmax << ", " << mbb.ymax << ", " << mbb.zmax << std::endl;
             }
