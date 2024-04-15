@@ -246,13 +246,13 @@ class AABBTree
 
             std::cout << "total number of node: " << k << std::endl; 
 
-            for (int i = 0; i < k; i++)
-            {
-                Node &node = node_pool[i];
-                MBB_Tri &mbb = node.mbb;
-                std::cout << "start: " << node.start << " end: " << node.end << std::endl;
-                std::cout << mbb.xmin << ", " << mbb.ymin << ", " << mbb.zmin << ", " << mbb.xmax << ", " << mbb.ymax << ", " << mbb.zmax << std::endl;
-            }
+            // for (int i = 0; i < k; i++)
+            // {
+            //     Node &node = node_pool[i];
+            //     MBB_Tri &mbb = node.mbb;
+            //     std::cout << "start: " << node.start << " end: " << node.end << std::endl;
+            //     std::cout << mbb.xmin << ", " << mbb.ymin << ", " << mbb.zmin << ", " << mbb.xmax << ", " << mbb.ymax << ", " << mbb.zmax << std::endl;
+            // }
             return 0;            
         }
 

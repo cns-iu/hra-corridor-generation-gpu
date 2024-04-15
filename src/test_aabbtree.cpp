@@ -1,9 +1,10 @@
 #include "aabbtree.h"
 #include "corridor.cuh"
 
-#include<iostream>
+#include <iostream>
+#include <cassert>
 
-int main()
+int main(int argc, char **argv)
 {
 
     // example 1, four triangles constructed by four points
@@ -24,9 +25,29 @@ int main()
 
 
     // example 2
-    std::string organ_path = "";
+    if (argc < 2) 
+    {
+        std::cout << "Please provide organ path!" << std::endl;
+        return 0;
+    }
+
+    std::string organ_path = std::string(argv[1]);
     Organ organ;
     loadOrganModel(organ_path, organ);
+    std::vector<Mesh> &meshes_vector = organ.meshes_vector;
+    for (Mesh &mesh: meshes_vector)
+    {
+        std::vector<float3> &mesh_data = mesh.data;
+        // Should be a vector of triangles, not vector of float3
+        assert(mesh_data.size() / 3 == 0);
+        std::vector<Triangle> tri_mesh;
+        for (int i = 0; i < mesh_data.size(); i+= 3)
+        {
+            tri_mesh.push_back(Triangle(mesh_data[i], mesh_data[i+1], mesh_data[i+2]));
+
+        }
+        AABBTree *aabbtree = new AABBTree(tri_mesh);
+    }
     
 
 }
