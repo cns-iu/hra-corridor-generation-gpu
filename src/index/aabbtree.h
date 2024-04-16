@@ -16,6 +16,16 @@ Author: Lu Chen
 #include "cuda_runtime.h"
 
 
+bool __device__ __host__ ray_mbb_intersection(MBB& mbb, float3 ray_origin)
+{
+    //direction (1, 0, 0), the same with function ray_triangle_intersection;
+
+    if (ray_origin.y > mbb.ymax || ray_origin.y < mbb.ymin || ray_origin.z > mbb.zmax || ray_origin.z < mbb.zmin || ray_origin.x > mbb.xmax) return false;
+    return true;
+
+}
+
+
 class MBB_Tri: public MBB
 {
     
@@ -103,6 +113,12 @@ class AABBTree
     private:
         int root_;
         std::vector<Triangle> triangles_;
+        // Node* node_pool = new Node();
+        std::vector<Node> node_pool;
+        std::vector<int> indices;
+    
+    public:
+        int total_node = 0;
 
     public:
         // The constructors
@@ -119,10 +135,18 @@ class AABBTree
 
             triangles_ = triangles;
 
-            std::vector<int> indices(triangles.size());
+            indices.resize(triangles.size());
             std::iota(std::begin(indices), std::end(indices), 0);
 
             root_ = buildIterative(indices.data(), (int) triangles.size());
+        }
+
+        bool point_inside(float3 point)
+        {
+            // odd number of intersections means the point inside.
+            int n = ray_intersection_with_aabbtree(point);
+            std::cout << "the number of intersections: " << n << std::endl;
+            return n % 2;
         }
 
         // clean AABB tree
@@ -173,14 +197,12 @@ class AABBTree
 
         int buildIterative(int* indices, int npoints)
         {
-
+            
             if (npoints <= 0) return -1;
 
             std::stack<int> stack;
+            node_pool.resize(2 * npoints);
 
-            // Node* node_pool = new Node();
-            std::vector<Node> node_pool(3 * npoints);
-            
             int k = 0;
             stack.push(k);
             Node &node = node_pool[k++];
@@ -206,8 +228,9 @@ class AABBTree
                     continue;
                 }
 
+                // can be optimized using postorder traversal. So the MBB can be the union of the two child nodes. 
                 // compute mbb, set mbb and division axis
-                compute_mbb(node, indices);
+                auto mbb = compute_mbb(node, indices);
                 
                 // partial sort 
                 int mid = (start + end) / 2;
@@ -218,7 +241,7 @@ class AABBTree
                     float3 rcenter = triangles_[rhs].center;
 
                     if (axis == 0)
-                        return lcenter.x < rcenter.y;
+                        return lcenter.x < rcenter.x; 
                     else if (axis == 1)
                         return lcenter.y < rcenter.y;
                     return lcenter.z < rcenter.z;
@@ -244,7 +267,7 @@ class AABBTree
 
             // root_ always 0 if not empty 
 
-            std::cout << "total number of node: " << k << std::endl; 
+            this->total_node = k;
 
             // for (int i = 0; i < k; i++)
             // {
@@ -254,6 +277,44 @@ class AABBTree
             //     std::cout << mbb.xmin << ", " << mbb.ymin << ", " << mbb.zmin << ", " << mbb.xmax << ", " << mbb.ymax << ", " << mbb.zmax << std::endl;
             // }
             return 0;            
+        }
+
+
+        int ray_intersection_with_aabbtree(float3 ray_origin)
+        {
+            if (triangles_.size() <= 0) return 0;
+
+            // bfs search
+            std::stack<int> stack;
+            stack.push(0);
+            float intersections = 0.0;
+
+            while (!stack.empty())
+            {
+                int node_idx = stack.top();
+                stack.pop();
+                
+                Node &node = node_pool[node_idx];
+                MBB &mbb = node.mbb;
+                
+                // leave node
+                if (node.start == node.end)
+                {
+                    Triangle &triangle = triangles_[indices[node.start]];
+                    float3 triangle_f[3] = {triangle.p1, triangle.p2, triangle.p3};
+                    intersections += ray_triangle_intersection(triangle_f, ray_origin);
+
+                }
+                else if (ray_mbb_intersection(mbb, ray_origin))
+                {
+                    stack.push(node.left);
+                    stack.push(node.right);
+                }
+
+            }
+            std::cout << "float intersections: " << intersections << std::endl;
+            return (int)intersections;
+
         }
 
 
