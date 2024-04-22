@@ -376,6 +376,7 @@ __global__ void compute_corridor_GPU(float3 *meshes, uint *offset, float* target
 
 void __device__ __host__ point_in_polyhedrons(float3 point, float3 *meshes, uint *offset, uint n_meshes, int point_result[])
 {
+	float3 ray_direction = make_float3(1, 0, 0);
 
     for (int k = 0; k < n_meshes; k++)
     {
@@ -383,7 +384,7 @@ void __device__ __host__ point_in_polyhedrons(float3 point, float3 *meshes, uint
         
         // extract the real triangle data 
         for (int i = offset[k]; i < offset[k+1]; i += 3)
-            intersection_sum_per_mesh += ray_triangle_intersection(&meshes[i], point);
+            intersection_sum_per_mesh += ray_triangle_intersection(&meshes[i], point, ray_direction);
         
         // point inside or outside according to odd or even number of intersections
         if ((int)intersection_sum_per_mesh % 2 == 0) point_result[k] = 0;
@@ -395,11 +396,12 @@ void __device__ __host__ point_in_polyhedrons(float3 point, float3 *meshes, uint
 int __device__ __host__ point_in_polyhedron(float3 point, float3 *meshes, uint *offset, int m_index)
 {
 
+	float3 ray_direction = make_float3(1, 0, 0);
     float intersection_sum_per_mesh = 0;
         
     // extract the real triangle data 
     for (int i = offset[m_index]; i < offset[m_index+1]; i += 3)
-    	intersection_sum_per_mesh += ray_triangle_intersection(&meshes[i], point);
+    	intersection_sum_per_mesh += ray_triangle_intersection(&meshes[i], point, ray_direction);
         
         // point inside or outside according to odd or even number of intersections
     if ((int)intersection_sum_per_mesh % 2 == 0) return 0;
@@ -646,7 +648,7 @@ void objLoader(const char *path, std::vector<int> *triangles_vector, std::vector
 
 // A routine to test whether a ray from an origin point intersects a triangle
 // The routine returns a value such that if it is summed will lead to a 0 (no intersection point outside) non-zero (intersection)
-float __device__ __host__ ray_triangle_intersection(float3* triangle, float3 ray_origin) {
+float __device__ __host__ ray_triangle_intersection(float3* triangle, float3 ray_origin, float3 ray_direction) {
 	// According to  Möller-Trumbore algorithm:
 	// Given a triangle ABC and Ray of parametric equation: O + tD (O origin and D direction vector and t parameter)
 	// Let E1 = B-A ; E2= C-A ; T= O-A ; P= DxE2 ; Q= TxE1  
@@ -673,7 +675,8 @@ float __device__ __host__ ray_triangle_intersection(float3* triangle, float3 ray
 	float o[3] = { ray_origin.x, ray_origin.y, ray_origin.z };
 
 	//D
-	float ray[3] = { 1,0,0 };
+	// float ray[3] = { 1,0,0 };
+	float ray[3] = {ray_direction.x, ray_direction.y, ray_direction.z};
 
 	// E1
 	float v0v1[3] = { v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2] };

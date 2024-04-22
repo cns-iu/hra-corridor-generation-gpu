@@ -140,7 +140,7 @@ void objLoader(const char *path, std::vector<int> *triangles_vector, std::vector
 
 // A routine to test whether a ray from an origin point intersects a triangle
 // The routine returns a value such that if it is summed will lead to a 0 (no intersection point outside) non-zero (intersection)
-float __device__ __host__ ray_triangle_intersection(float3* triangle, float3 ray_origin);
+float __device__ __host__ ray_triangle_intersection(float3* triangle, float3 ray_origin, float3 ray_direction);
 
 float __device__ __host__ triangel_area(float* e1, float* e2);
 
