@@ -15,12 +15,14 @@ Author: Lu Chen
 #include "corridor.cuh"
 #include "cuda_runtime.h"
 
-
-bool __device__ __host__ ray_mbb_intersection(MBB& mbb, float3 ray_origin)
+namespace myspatial
 {
-    //direction (1, 0, 0), the same with function ray_triangle_intersection;
+bool __device__ __host__ ray_mbb_intersection(MBB& mbb, float3 ray_origin, float3 ray_direction)
+{
+    //direction (1, 0, 0) or (-1, 0, 0), the same with function ray_triangle_intersection;
 
-    if (ray_origin.y > mbb.ymax || ray_origin.y < mbb.ymin || ray_origin.z > mbb.zmax || ray_origin.z < mbb.zmin || ray_origin.x > mbb.xmax) return false;
+    if (ray_origin.y > mbb.ymax || ray_origin.y < mbb.ymin || ray_origin.z > mbb.zmax || ray_origin.z < mbb.zmin) return false;
+    if ((ray_direction.x > 0 && ray_origin.x > mbb.xmax) || (ray_direction.x < 0 && ray_origin.x < mbb.xmin)) return false;
     return true;
 
 }
@@ -145,7 +147,7 @@ class AABBTree
         {
             // odd number of intersections means the point inside.
             int n = ray_intersection_with_aabbtree(point);
-            std::cout << "the number of intersections: " << n << std::endl;
+            // std::cout << "the number of intersections: " << n << std::endl;
             return n % 2;
         }
 
@@ -223,7 +225,8 @@ class AABBTree
                 if (start == end) 
                 {
                     // Leaf Node, which triangle the node contains
-                    node.idx = start;
+                    // node.idx = start;
+                    node.idx = indices[start];
                     node.mbb = triangles_[indices[start]].mbb;
                     continue;
                 }
@@ -289,6 +292,12 @@ class AABBTree
             stack.push(0);
             float intersections = 0.0;
 
+            // mbb of all the triangles of the mesh
+            float3 ray_direction;
+            MBB &mbb = node_pool[0].mbb;
+            if (mbb.xmax + mbb.xmin < 2 * ray_origin.x) ray_direction = make_float3(1, 0, 0);
+            else ray_direction = make_float3(-1, 0, 0);
+
             while (!stack.empty())
             {
                 int node_idx = stack.top();
@@ -300,22 +309,25 @@ class AABBTree
                 // leave node
                 if (node.start == node.end)
                 {
-                    Triangle &triangle = triangles_[indices[node.start]];
+                    // Triangle &triangle = triangles_[indices[node.start]];
+                    Triangle &triangle = triangles_[node.idx];
                     float3 triangle_f[3] = {triangle.p1, triangle.p2, triangle.p3};
-                    intersections += ray_triangle_intersection(triangle_f, ray_origin);
+                    intersections += ray_triangle_intersection(triangle_f, ray_origin, ray_direction);
 
                 }
-                else if (ray_mbb_intersection(mbb, ray_origin))
+                else if (ray_mbb_intersection(mbb, ray_origin, ray_direction))
                 {
                     stack.push(node.left);
                     stack.push(node.right);
                 }
 
             }
-            std::cout << "float intersections: " << intersections << std::endl;
+            // std::cout << "float intersections: " << intersections << std::endl;
             return (int)intersections;
 
         }
 
 
 };
+
+}
