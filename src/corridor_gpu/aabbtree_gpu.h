@@ -340,6 +340,8 @@ class AABBTreeCUDA
     public:
         Node* nodes_;
         Triangle* triangles_;
+        int n_nodes;
+        int n_triangles;
     
     public:
         // constructor
