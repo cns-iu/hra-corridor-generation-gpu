@@ -1,5 +1,4 @@
-#include "aabbtree.h"
-#include "corridor.cuh"
+#include "corridor_with_spatial_index.cuh"
 
 #include <iostream>
 #include <cassert>
@@ -63,4 +62,15 @@ int main(int argc, char **argv)
     // float3 p5 = make_float3(-0.011262157000601292, 0.85468000173568726, -0.083210617303848267);
     float3 p5 = make_float3(0.1, 0.1, 0.01);
     p_aabbtree0->point_inside(p5);
+
+
+    std::vector<std::pair<int, float>> collision_detection_result;
+    collision_detection_result.push_back(std::make_pair(3, 0.031));
+    collision_detection_result.push_back(std::make_pair(4, 0.961));
+
+    AATissue example_tissue(0, 0, 0, 0.002, 0.003, 0.002);
+
+    test_corridor_with_spatial_index_gpu(example_tissue, collision_detection_result, p_aabbtrees);
+
+
 }

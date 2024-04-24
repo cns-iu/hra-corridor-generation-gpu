@@ -75,9 +75,16 @@ target_link_libraries(comparison corridor_gpu)
 target_link_libraries(comparison corridor_cpu)
 # target_link_libraries(comparison cpprestsdk::cpprest)
 
+# test aabb gpu
+cuda_add_executable(test_aabbtree_gpu test_aabbtree.cpp)
+# target_include_directories(test_aabbtree_gpu PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/index)
+target_link_libraries(test_aabbtree_gpu geometry)
+target_link_libraries(test_aabbtree_gpu corridor_gpu)
+target_link_libraries(test_aabbtree_gpu corridor_cpu)
 
 if(Boost_FOUND)
     target_link_libraries(main ${Boost_LIBRARIES})
     target_link_libraries(gpu_corridor_api ${Boost_LIBRARIES})
     target_link_libraries(comparison ${Boost_LIBRARIES})
+    target_link_libraries(test_aabbtree_gpu ${Boost_LIBRARIES})
 endif()
