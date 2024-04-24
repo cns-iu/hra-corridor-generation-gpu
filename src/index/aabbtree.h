@@ -12,24 +12,21 @@ Author: Lu Chen
 #include <numeric>
 #include <iostream>
 
-#include "corridor.cuh"
+// #include "corridor.cuh"
 #include "cuda_runtime.h"
 
 namespace myspatial
 {
-bool __device__ __host__ ray_mbb_intersection(MBB& mbb, float3 ray_origin, float3 ray_direction)
+
+class MBB_Tri
 {
-    //direction (1, 0, 0) or (-1, 0, 0), the same with function ray_triangle_intersection;
+    public:
+        MBB_Tri() = default;
+        MBB_Tri(float x_min, float y_min, float z_min, float x_max, float y_max, float z_max):
+        xmin(x_min), ymin(y_min), zmin(z_min), xmax(x_max), ymax(y_max), zmax(z_max) {}
 
-    if (ray_origin.y > mbb.ymax || ray_origin.y < mbb.ymin || ray_origin.z > mbb.zmax || ray_origin.z < mbb.zmin) return false;
-    if ((ray_direction.x > 0 && ray_origin.x > mbb.xmax) || (ray_direction.x < 0 && ray_origin.x < mbb.xmin)) return false;
-    return true;
-
-}
-
-
-class MBB_Tri: public MBB
-{
+    public:
+        float xmin, ymin, zmin, xmax, ymax, zmax;
     
     public:
         void update(MBB_Tri &other_mbb)
@@ -40,6 +37,15 @@ class MBB_Tri: public MBB
             xmax = std::max(xmax, other_mbb.xmax);
             ymax = std::max(ymax, other_mbb.ymax);
             zmax = std::max(zmax, other_mbb.zmax);
+        }
+
+        bool __device__ __host__ ray_intersection(float3 ray_origin, float3 ray_direction)
+        {
+
+            if (ray_origin.y > ymax || ray_origin.y < ymin || ray_origin.z > zmax || ray_origin.z < zmin) return false;
+            if ((ray_direction.x > 0 && ray_origin.x > xmax) || (ray_direction.x < 0 && ray_origin.x < xmin)) return false;
+            return true;
+
         }
 
 };
@@ -112,7 +118,7 @@ class Triangle
 class AABBTree
 {
 
-    private:
+    public:
         int root_;
         std::vector<Triangle> triangles_;
         // Node* node_pool = new Node();
@@ -294,7 +300,7 @@ class AABBTree
 
             // mbb of all the triangles of the mesh
             float3 ray_direction;
-            MBB &mbb = node_pool[0].mbb;
+            MBB_Tri mbb = node_pool[0].mbb;
             if (mbb.xmax + mbb.xmin < 2 * ray_origin.x) ray_direction = make_float3(1, 0, 0);
             else ray_direction = make_float3(-1, 0, 0);
 
@@ -304,7 +310,98 @@ class AABBTree
                 stack.pop();
                 
                 Node &node = node_pool[node_idx];
-                MBB &mbb = node.mbb;
+                MBB_Tri &mbb = node.mbb;
+                
+                if (mbb.ray_intersection(ray_origin, ray_direction))
+                {
+                    // leave node
+                    if (node.start == node.end)
+                    {
+                        // Triangle &triangle = triangles_[indices[node.start]];
+                        Triangle &triangle = triangles_[node.idx];
+                        float3 triangle_f[3] = {triangle.p1, triangle.p2, triangle.p3};
+                        intersections += ray_triangle_intersection(triangle_f, ray_origin, ray_direction);
+
+                    }
+                    else
+                    {
+                        stack.push(node.left);
+                        stack.push(node.right);
+                    }
+                }
+
+            }
+            // std::cout << "float intersections: " << intersections << std::endl;
+            return (int)intersections;
+
+        }
+
+
+};
+
+
+class AABBTreeCUDA
+{
+    public:
+        Node* nodes_;
+        Triangle* triangles_;
+    
+    public:
+        // constructor
+        AABBTreeCUDA(const AABBTree &aabbtree)
+        {
+            int n_nodes = aabbtree.node_pool.size();
+            int n_triangles = aabbtree.triangles_.size();
+
+            // allocate memory
+            nodes_ = new Node[n_nodes];
+            triangles_ = new Triangle[n_triangles];
+
+            auto &node_pool = aabbtree.node_pool;
+            auto &triangles = aabbtree.triangles_;
+            std::copy(node_pool.begin(), node_pool.end(), nodes_);
+            std::copy(triangles.begin(), triangles.end(), triangles_);
+
+        }
+
+        AABBTreeCUDA(const AABBTreeCUDA& copySource)
+        {
+            int n_nodes = sizeof(copySource.nodes_) / sizeof(Node);
+            int n_triangles = sizeof(copySource.triangles_) / sizeof(Triangle);
+
+            nodes_ = new Node[n_nodes];
+            triangles_ = new Triangle[n_triangles];
+
+            std::memcpy(nodes_, copySource.nodes_, n_nodes * sizeof(Node));
+            std::memcpy(triangles_, copySource.triangles_, n_triangles * sizeof(Triangle));
+
+        }
+
+        int __device__ __host__ ray_intersection_with_aabbtree(float3 ray_origin)
+        {
+
+            int n_nodes = sizeof(nodes_) / sizeof(Node);
+            int n_triangles = sizeof(triangles_) / sizeof(Triangle);
+
+            if (n_triangles <= 0) return 0;
+
+            // bfs search
+            int* stack = new int[n_nodes];
+            int k = 0;
+            stack[k++] = 0;
+            float intersections = 0.0;
+
+            // mbb of all the triangles of the mesh
+            float3 ray_direction;
+            MBB_Tri &mbb = nodes_[0].mbb;
+            if (mbb.xmax + mbb.xmin < 2 * ray_origin.x) ray_direction = make_float3(1, 0, 0);
+            else ray_direction = make_float3(-1, 0, 0);
+
+            while (k)
+            {
+                int node_idx = stack[k--];
+                Node &node = nodes_[node_idx];
+                MBB_Tri &mbb = node.mbb;
                 
                 // leave node
                 if (node.start == node.end)
@@ -315,10 +412,10 @@ class AABBTree
                     intersections += ray_triangle_intersection(triangle_f, ray_origin, ray_direction);
 
                 }
-                else if (ray_mbb_intersection(mbb, ray_origin, ray_direction))
+                else if (mbb.ray_intersection(ray_origin, ray_direction))
                 {
-                    stack.push(node.left);
-                    stack.push(node.right);
+                    stack[k++] = node.left;
+                    stack[k++] = node.right;
                 }
 
             }
@@ -326,7 +423,7 @@ class AABBTree
             return (int)intersections;
 
         }
-
+    
 
 };
 
