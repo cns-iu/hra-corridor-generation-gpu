@@ -36,6 +36,7 @@ target_link_libraries(geometry PUBLIC Eigen3::Eigen)
 target_link_libraries(geometry PUBLIC assimp)
 
 # static library corridor_gpu
+set(CUDA_SEPARABLE_COMPILATION ON)
 file(GLOB CORRIDOR_GPU_SRC_FILES corridor_gpu/*.cu)
 cuda_add_library(corridor_gpu ${CORRIDOR_GPU_SRC_FILES})
 set_property(TARGET corridor_gpu PROPERTY CUDA_ARCHITECTURES native)
