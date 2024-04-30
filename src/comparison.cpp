@@ -2,7 +2,7 @@
 #include "utils.h"
 #include "corridor_cpu.h"
 #include "corridor.cuh"
-#include "aabbtree.h"
+#include "aabbtree_gpu.h"
 
 #include <chrono>
 
