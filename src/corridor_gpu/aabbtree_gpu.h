@@ -1,3 +1,7 @@
+/*
+The accuracy of AABBTree and AABBTreeCUDA has been verified. 
+*/
+
 #pragma once
 
 #include <vector>
@@ -152,6 +156,11 @@ class AABBTree
             return n % 2;
         }
 
+        MBB_Tri &get_mbb()
+        {
+            return node_pool[0].mbb;
+        }
+
         // clean AABB tree
         void clear()
         {
@@ -172,7 +181,7 @@ class AABBTree
             int end = node.end;
             int idx;
 
-            MBB_Tri node_mbb = triangles_[start].mbb;
+            MBB_Tri node_mbb = triangles_[indices[start]].mbb;
             
             for (int i = start; i <= end; i++)
             {
@@ -221,7 +230,6 @@ class AABBTree
                 int start = node.start;
                 int end = node.end;
                 int depth = node.depth;
-                int axis = node.axis;
 
                 if (start == end) 
                 {
@@ -236,6 +244,9 @@ class AABBTree
                 // compute mbb, set mbb and division axis
                 auto mbb = compute_mbb(node, indices);
                 
+                // The axis is determined after the mbb is calculated.  
+                int axis = node.axis;
+
                 // partial sort 
                 int mid = (start + end) / 2;
 
@@ -270,16 +281,8 @@ class AABBTree
             }
 
             // root_ always 0 if not empty 
-
             this->total_node = k;
 
-            // for (int i = 0; i < k; i++)
-            // {
-            //     Node &node = node_pool[i];
-            //     MBB_Tri &mbb = node.mbb;
-            //     std::cout << "start: " << node.start << " end: " << node.end << std::endl;
-            //     std::cout << mbb.xmin << ", " << mbb.ymin << ", " << mbb.zmin << ", " << mbb.xmax << ", " << mbb.ymax << ", " << mbb.zmax << std::endl;
-            // }
             return 0;            
         }
 
@@ -288,7 +291,7 @@ class AABBTree
         {
             if (triangles_.size() <= 0) return 0;
 
-            // bfs search
+            // iterative dfs search
             std::stack<int> stack;
             stack.push(0);
             float intersections = 0.0;
@@ -298,6 +301,9 @@ class AABBTree
             MBB_Tri mbb = node_pool[0].mbb;
             if (mbb.xmax + mbb.xmin < 2 * ray_origin.x) ray_direction = make_float3(1, 0, 0);
             else ray_direction = make_float3(-1, 0, 0);
+
+            int ray_node_count = 0;
+            int ray_triangle_count = 0;
 
             while (!stack.empty())
             {
@@ -309,13 +315,14 @@ class AABBTree
                 
                 if (mbb.ray_intersection(ray_origin, ray_direction))
                 {
-                    // leave node
+                    // leaf node
                     if (node.start == node.end)
                     {
                         // Triangle &triangle = triangles_[indices[node.start]];
                         Triangle &triangle = triangles_[node.idx];
                         float3 triangle_f[3] = {triangle.p1, triangle.p2, triangle.p3};
                         intersections += ray_triangle_intersection(triangle_f, ray_origin, ray_direction);
+                        ray_triangle_count ++;
 
                     }
                     else
@@ -323,10 +330,12 @@ class AABBTree
                         stack.push(node.left);
                         stack.push(node.right);
                     }
+
+                    ray_node_count ++;
                 }
 
             }
-            // std::cout << "float intersections: " << intersections << std::endl;
+
             return (int)intersections;
 
         }
@@ -345,10 +354,11 @@ class AABBTreeCUDA
     
     public:
         // constructor
+        AABBTreeCUDA() = default;
         AABBTreeCUDA(const AABBTree &aabbtree)
         {
-            int n_nodes = aabbtree.node_pool.size();
-            int n_triangles = aabbtree.triangles_.size();
+            n_nodes = aabbtree.node_pool.size();
+            n_triangles = aabbtree.triangles_.size();
 
             // allocate memory
             nodes_ = new Node[n_nodes];
@@ -363,8 +373,8 @@ class AABBTreeCUDA
 
         AABBTreeCUDA(const AABBTreeCUDA& copySource)
         {
-            int n_nodes = sizeof(copySource.nodes_) / sizeof(Node);
-            int n_triangles = sizeof(copySource.triangles_) / sizeof(Triangle);
+            n_nodes = sizeof(copySource.nodes_) / sizeof(Node);
+            n_triangles = sizeof(copySource.triangles_) / sizeof(Triangle);
 
             nodes_ = new Node[n_nodes];
             triangles_ = new Triangle[n_triangles];
@@ -377,13 +387,10 @@ class AABBTreeCUDA
         int __device__ __host__ ray_intersection_with_aabbtree(float3 ray_origin)
         {
 
-            int n_nodes = sizeof(nodes_) / sizeof(Node);
-            int n_triangles = sizeof(triangles_) / sizeof(Triangle);
-
             if (n_triangles <= 0) return 0;
 
-            // bfs search
-            int* stack = new int[n_nodes];
+            // dfs search with stack
+            int stack[1000];
             int k = 0;
             stack[k++] = 0;
             float intersections = 0.0;
@@ -391,34 +398,47 @@ class AABBTreeCUDA
             // mbb of all the triangles of the mesh
             float3 ray_direction;
             MBB_Tri &mbb = nodes_[0].mbb;
-            if (mbb.xmax + mbb.xmin < 2 * ray_origin.x) ray_direction = make_float3(1, 0, 0);
-            else ray_direction = make_float3(-1, 0, 0);
+            if (mbb.zmax + mbb.zmin < 2 * ray_origin.z) ray_direction = make_float3(0, 0, 1);
+            else ray_direction = make_float3(0, 0, -1);
 
             while (k)
             {
-                int node_idx = stack[k--];
+                int node_idx = stack[--k];
                 Node &node = nodes_[node_idx];
                 MBB_Tri &mbb = node.mbb;
                 
-                // leave node
-                if (node.start == node.end)
+                // leaf node
+                if (mbb.ray_intersection(ray_origin, ray_direction))
                 {
-                    // Triangle &triangle = triangles_[indices[node.start]];
-                    Triangle &triangle = triangles_[node.idx];
-                    float3 triangle_f[3] = {triangle.p1, triangle.p2, triangle.p3};
-                    intersections += ray_triangle_intersection(triangle_f, ray_origin, ray_direction);
+                    if (node.start == node.end)
+                    {
+                        // Triangle &triangle = triangles_[indices[node.start]];
+                        Triangle &triangle = triangles_[node.idx];
+                        float3 triangle_f[3] = {triangle.p1, triangle.p2, triangle.p3};
+                        intersections += ray_triangle_intersection(triangle_f, ray_origin, ray_direction);
 
-                }
-                else if (mbb.ray_intersection(ray_origin, ray_direction))
-                {
-                    stack[k++] = node.left;
-                    stack[k++] = node.right;
+                    }
+                    else
+                    {
+                        stack[k++] = node.left;
+                        stack[k++] = node.right;
+                    }
+
                 }
 
             }
+
             // std::cout << "float intersections: " << intersections << std::endl;
             return (int)intersections;
 
+        }
+
+        int __device__ __host__ point_inside(float3 point)
+        {
+            // odd number of intersections means the point inside.
+            int n = ray_intersection_with_aabbtree(point);
+            // std::cout << "the number of intersections: " << n << std::endl;
+            return n % 2;
         }
     
 
